@@ -1,0 +1,99 @@
+// Classe de Validação de Avaliações
+public class ValidacaoAvaliacao {
+    public boolean validarIntervaloEntreAvaliacoes(List<ElementoAvaliacao> avaliacoes) {
+        for (int i = 0; i < avaliacoes.size(); i++) {
+            for (int j = i + 1; j < avaliacoes.size(); j++) {
+                ElementoAvaliacao av1 = avaliacoes.get(i);
+                ElementoAvaliacao av2 = avaliacoes.get(j);
+                
+                // Verificar intervalo mínimo de 24h para avaliações no mesmo ano/semestre
+                if (av1.getDataHora().toLocalDate().equals(av2.getDataHora().toLocalDate())) {
+                    return false;
+                }
+                
+                long horasDiferenca = ChronoUnit.HOURS.between(av1.getDataHora(), av2.getDataHora());
+                if (Math.abs(horasDiferenca) < 24) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    public boolean validarPonderacoes(List<ElementoAvaliacao> avaliacoes) {
+        double totalPonderacao = avaliacoes.stream()
+            .mapToDouble(ElementoAvaliacao::getPonderacao)
+            .sum();
+        
+        return Math.abs(totalPonderacao - 100.0) < 0.01;
+    }
+}
+
+// Interface de Usuário Básica (usando JavaFX)
+public class InterfaceGestaoAvaliacao extends Application {
+    @Override
+    public void start(Stage primaryStage) {
+        GridPane grid = new GridPane();
+        
+        // Campos para cadastro de avaliação
+        TextField cursoField = new TextField();
+        TextField ucField = new TextField();
+        ComboBox<TipoElementoAvaliacao> tipoAvaliacaoCombo = new ComboBox<>();
+        DatePicker dataPicker = new DatePicker();
+        TextField ponderacaoField = new TextField();
+        
+        Button salvarButton = new Button("Salvar Avaliação");
+        salvarButton.setOnAction(e -> {
+            // Lógica de salvamento
+            ElementoAvaliacao novaAvaliacao = new ElementoAvaliacao();
+            // Popular objeto
+        });
+        
+        // Adicionar componentes ao grid
+        grid.add(new Label("Curso:"), 0, 0);
+        grid.add(cursoField, 1, 0);
+        // Adicionar outros campos...
+        
+        Scene scene = new Scene(grid, 400, 300);
+        primaryStage.setScene(scene);
+        primaryStage.setTitle("Gestão de Avaliações");
+        primaryStage.show();
+    }
+}
+
+// Mecanismo de Persistência (usando JPA/Hibernate)
+@Entity
+public class ElementoAvaliacaoRepositorio {
+    @PersistenceContext
+    private EntityManager entityManager;
+    
+    public void salvarAvaliacao(ElementoAvaliacao avaliacao) {
+        entityManager.getTransaction().begin();
+        entityManager.persist(avaliacao);
+        entityManager.getTransaction().commit();
+    }
+    
+    public List<ElementoAvaliacao> buscarAvaliacoesPorCurso(Curso curso) {
+        return entityManager.createQuery(
+            "SELECT e FROM ElementoAvaliacao e WHERE e.unidadeCurricular.curso = :curso", 
+            ElementoAvaliacao.class)
+            .setParameter("curso", curso)
+            .getResultList();
+    }
+}
+
+// Serviço de Gestão de Avaliações
+public class ServicoGestaoAvaliacao {
+    private ValidacaoAvaliacao validacao;
+    private ElementoAvaliacaoRepositorio repositorio;
+    
+    public boolean cadastrarAvaliacao(ElementoAvaliacao avaliacao) {
+        // Validar antes de salvar
+        if (validacao.validarPonderacoes(avaliacao.getUnidadeCurricular().getElementosAvaliacao()) &&
+            validacao.validarIntervaloEntreAvaliacoes(avaliacao.getUnidadeCurricular().getElementosAvaliacao())) {
+            repositorio.salvarAvaliacao(avaliacao);
+            return true;
+        }
+        return false;
+    }
+}
