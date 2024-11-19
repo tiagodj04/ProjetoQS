@@ -1,0 +1,148 @@
+// Exceções personalizadas
+public class AvaliacaoException extends Exception {
+    public AvaliacaoException(String mensagem) {
+        super(mensagem);
+    }
+}
+
+public class ValidacaoAvaliacao {
+    public void validarAvaliacao(ElementoAvaliacao avaliacao) throws AvaliacaoException {
+        // Validações específicas
+        validarDataAvaliacao(avaliacao);
+        validarHoraEntrega(avaliacao);
+        validarDisponibilidadeSala(avaliacao);
+        validarRequisitosComputador(avaliacao);
+    }
+
+    private void validarDataAvaliacao(ElementoAvaliacao avaliacao) throws AvaliacaoException {
+        if (avaliacao.getDataHora().isBefore(LocalDateTime.now())) {
+            throw new AvaliacaoException("Data de avaliação não pode ser no passado");
+        }
+    }
+
+    private void validarHoraEntrega(ElementoAvaliacao avaliacao) throws AvaliacaoException {
+        if (avaliacao.getTipo() == TipoElementoAvaliacao.ENTREGA_TRABALHO) {
+            LocalTime horaLimite = LocalTime.of(23, 59, 0);
+            if (avaliacao.getDataLimiteEntrega().toLocalTime().isAfter(horaLimite)) {
+                throw new AvaliacaoException("Hora de entrega deve ser às 23:59");
+            }
+        }
+    }
+
+    private void validarDisponibilidadeSala(ElementoAvaliacao avaliacao) throws AvaliacaoException {
+        Sala sala = avaliacao.getSala();
+        if (sala == null || !sala.isDisponivel()) {
+            throw new AvaliacaoException("Sala indisponível para avaliação");
+        }
+    }
+
+    private void validarRequisitosComputador(ElementoAvaliacao avaliacao) throws AvaliacaoException {
+        if (avaliacao.isNecessitaComputador()) {
+            Sala sala = avaliacao.getSala();
+            int computadoresNecessarios = avaliacao.getNumeroAlunos();
+            if (sala.getComputadores() < computadoresNecessarios) {
+                throw new AvaliacaoException("Número de computadores insuficiente");
+            }
+        }
+    }
+}
+
+// Interface de Usuário Melhorada
+public class InterfaceGestaoAvaliacao extends Application {
+    private ServicoGestaoAvaliacao servicoGestao;
+    private ValidacaoAvaliacao validacao;
+
+    @Override
+    public void start(Stage primaryStage) {
+        // Layout responsivo
+        BorderPane layout = new BorderPane();
+        
+        // Formulário detalhado
+        GridPane formulario = criarFormularioAvaliacao();
+        layout.setCenter(formulario);
+        
+        // Barra de menu
+        MenuBar menuBar = criarMenuPrincipal();
+        layout.setTop(menuBar);
+        
+        // Tratamento de erros
+        Label mensagemErro = new Label();
+        mensagemErro.setTextFill(Color.RED);
+        layout.setBottom(mensagemErro);
+
+        Scene scene = new Scene(layout, 600, 500);
+        primaryStage.setScene(scene);
+        primaryStage.setTitle("Gestão de Avaliações - UPT");
+        primaryStage.show();
+    }
+
+    private GridPane criarFormularioAvaliacao() {
+        GridPane grid = new GridPane();
+        grid.setPadding(new Insets(10));
+        grid.setVgap(8);
+        grid.setHgap(10);
+
+        // Campos detalhados
+        ComboBox<Curso> cursosCombo = new ComboBox<>();
+        ComboBox<UnidadeCurricular> ucCombo = new ComboBox<>();
+        ComboBox<TipoElementoAvaliacao> tipoAvaliacaoCombo = new ComboBox<>();
+        DatePicker dataPicker = new DatePicker();
+        TextField ponderacaoField = new TextField();
+        CheckBox necessitaComputadorCheck = new CheckBox("Requer Computador");
+
+        // Botão de salvar com tratamento de exceções
+        Button salvarButton = new Button("Salvar Avaliação");
+        salvarButton.setOnAction(e -> {
+            try {
+                ElementoAvaliacao avaliacao = construirAvaliacao();
+                validacao.validarAvaliacao(avaliacao);
+                servicoGestao.cadastrarAvaliacao(avaliacao);
+                // Limpar formulário
+            } catch (AvaliacaoException ex) {
+                // Mostrar mensagem de erro
+                Alert alert = new Alert(Alert.AlertType.ERROR);
+                alert.setContentText(ex.getMessage());
+                alert.showAndWait();
+            }
+        });
+
+        return grid;
+    }
+
+    private MenuBar criarMenuPrincipal() {
+        MenuBar menuBar = new MenuBar();
+        Menu arquivoMenu = new Menu("Arquivo");
+        Menu edicaoMenu = new Menu("Edição");
+        
+        // Adicionar itens de menu
+        return menuBar;
+    }
+}
+
+// Configuração de Banco de Dados (usando Hibernate)
+@Configuration
+public class ConfiguracaoBancoDados {
+    @Bean
+    public LocalSessionFactoryBean sessionFactory() {
+        LocalSessionFactoryBean sessionFactory = new LocalSessionFactoryBean();
+        
+        // Configurações de conexão
+        DriverManagerDataSource dataSource = new DriverManagerDataSource();
+        dataSource.setDriverClassName("org.postgresql.Driver");
+        dataSource.setUrl("jdbc:postgresql://localhost:5432/upt_avaliacoes");
+        dataSource.setUsername("usuario");
+        dataSource.setPassword("senha");
+        
+        sessionFactory.setDataSource(dataSource);
+        sessionFactory.setPackagesToScan("com.upt.avaliacao.modelo");
+        
+        Properties hibernateProperties = new Properties();
+        hibernateProperties.put("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect");
+        hibernateProperties.put("hibernate.show_sql", "true");
+        hibernateProperties.put("hibernate.hbm2ddl.auto", "update");
+        
+        sessionFactory.setHibernateProperties(hibernateProperties);
+        
+        return sessionFactory;
+    }
+}
